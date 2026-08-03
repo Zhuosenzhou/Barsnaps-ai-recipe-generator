@@ -15,7 +15,7 @@ This repo is an extracted piece of the full BarSnaps app — just the AI recogni
 
 ## Architecture
 
-\`\`\`mermaid
+```mermaid
 flowchart LR
     A[User captures/uploads photo] --> B[Image uploaded to storage]
     B --> C[Frontend calls generateRecipe function]
@@ -23,7 +23,7 @@ flowchart LR
     D --> E[AI generates structured recipe JSON]
     E --> F[Recipe saved to database]
     F --> G[Recipe displayed to user]
-\`\`\`
+```
 
 **Two pieces, split by responsibility:**
 - **Frontend** (`frontend-camera-capture.tsx`) — handles the camera/upload UI, image capture, and calling the backend
