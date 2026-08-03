@@ -1,0 +1,70 @@
+// Extracted from CameraPage.tsx — the frontend side of the drink
+// recognition flow. This is trimmed to just the capture -> upload ->
+// generate steps; the full page also handles camera permission
+// fallbacks, retake/switch-camera controls, and preference prompts.
+
+import { useRef, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+
+export function useDrinkRecognition() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  // Captures the current video frame to a canvas, converts it to a
+  // file, and uploads it to storage. Returns the public URL to use
+  // as input for recipe generation.
+  async function captureAndUpload(): Promise<string | null> {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return null;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    ctx?.drawImage(video, 0, 0);
+
+    return new Promise((resolve) => {
+      canvas.toBlob(async (blob: Blob | null) => {
+        if (!blob) return resolve(null);
+
+        const file = new File([blob], `capture-${Date.now()}.jpg`, {
+          type: "image/jpeg",
+        });
+
+        // Compression happens inside uploadCocktailImage before the
+        // file hits storage, to keep upload times fast on mobile.
+        const url = await uploadCocktailImage(file);
+        setImageUrl(url);
+        resolve(url);
+      });
+    });
+  }
+
+  // Calls the generateRecipe Edge Function with the uploaded image.
+  // All the actual AI work — vision analysis, prompt construction,
+  // structured output — happens server-side; the frontend just waits
+  // for a result.
+  async function generateRecipe(userPreferences: string, complexityMode: "classic" | "mixologist") {
+    if (!imageUrl) return;
+
+    setIsGenerating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("generateRecipe", {
+        body: { imageUrl, userPreferences, complexityMode },
+      });
+
+      if (error) throw error;
+      return data?.recipe;
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  return { canvasRef, videoRef, imageUrl, isGenerating, captureAndUpload, generateRecipe };
+}
+
+// Placeholder — the real implementation lives in lib/storage.ts and
+// handles compression + upload to the cocktail-images bucket.
+declare function uploadCocktailImage(file: File): Promise<string>;
